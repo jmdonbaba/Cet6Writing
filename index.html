@@ -1,0 +1,921 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CET-6 作文助手</title>
+<style>
+:root {
+  --primary: #4f46e5;
+  --primary-light: #eef2ff;
+  --primary-hover: #4338ca;
+  --bg: #f8fafc;
+  --card-bg: #ffffff;
+  --text: #1e293b;
+  --text-secondary: #64748b;
+  --border: #e2e8f0;
+  --danger: #ef4444;
+  --radius: 12px;
+  --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, "Noto Sans SC", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+.container { max-width: 860px; margin: 0 auto; padding: 24px 20px 60px; }
+
+.header { text-align: center; padding: 32px 0 24px; }
+.header h1 { font-size: 28px; font-weight: 700; color: var(--primary); }
+.header p { color: var(--text-secondary); font-size: 14px; margin-top: 4px; }
+
+/* Key area */
+.key-area { margin-top: 12px; display: flex; justify-content: center; align-items: center; gap: 8px; }
+.key-area input {
+  width: 360px; padding: 8px 12px; border: 1px solid var(--border);
+  border-radius: 8px; font-size: 13px; outline: none; font-family: monospace;
+}
+.key-area input:focus { border-color: var(--primary); }
+.key-area.saved input { display: none; }
+.key-area.saved .btn-sm { display: none; }
+.key-status { display: none; font-size: 12px; color: var(--success); cursor: pointer; }
+.key-status:hover { text-decoration: underline; }
+.key-area.saved .key-status { display: inline; }
+
+.card {
+  background: var(--card-bg);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 20px;
+  margin-bottom: 16px;
+}
+
+/* Input area */
+.input-area { display: flex; gap: 10px; }
+.input-area input {
+  flex: 1; padding: 12px 16px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 15px; outline: none;
+  transition: border-color 0.2s;
+}
+.input-area input:focus { border-color: var(--primary); }
+.btn-primary {
+  padding: 12px 28px; background: var(--primary);
+  color: #fff; border: none; border-radius: var(--radius);
+  font-size: 15px; font-weight: 600; cursor: pointer; white-space: nowrap;
+  transition: background 0.2s;
+}
+.btn-primary:hover { background: var(--primary-hover); }
+.btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* Examples */
+.examples-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.examples-header span { font-size: 14px; font-weight: 600; color: var(--text-secondary); }
+.btn-refresh {
+  background: transparent; border: 1px solid var(--border);
+  padding: 6px 14px; border-radius: 20px; font-size: 13px;
+  cursor: pointer; color: var(--text-secondary); transition: all 0.2s;
+}
+.btn-refresh:hover { border-color: var(--primary); color: var(--primary); }
+.examples-list { display: flex; flex-direction: column; gap: 6px; }
+.example-item {
+  padding: 10px 14px; background: var(--primary-light);
+  border-radius: 8px; font-size: 14px; cursor: pointer;
+  transition: all 0.2s; color: var(--text);
+  border-left: 3px solid transparent;
+}
+.example-item:hover { border-left-color: var(--primary); background: #e0e7ff; }
+
+/* Loading */
+.loading { display: none; text-align: center; padding: 32px; }
+.loading.active { display: block; }
+.spinner {
+  display: inline-block; width: 36px; height: 36px;
+  border: 3px solid var(--border); border-top-color: var(--primary);
+  border-radius: 50%; animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading p { margin-top: 12px; color: var(--text-secondary); font-size: 14px; }
+
+/* Result area */
+.result-area { display: none; }
+.result-area.active { display: block; }
+.result-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.tabs { display: flex; gap: 4px; background: var(--bg); border-radius: 8px; padding: 4px; }
+.tab {
+  padding: 8px 20px; border: none; background: transparent;
+  border-radius: 6px; font-size: 14px; cursor: pointer;
+  color: var(--text-secondary); font-weight: 500; transition: all 0.2s;
+}
+.tab.active { background: #fff; color: var(--primary); box-shadow: var(--shadow); }
+
+.btn-favorite {
+  padding: 8px 18px; background: var(--primary-light);
+  border: 1px solid transparent; border-radius: 8px;
+  font-size: 14px; cursor: pointer; color: var(--primary);
+  font-weight: 500; transition: all 0.2s;
+}
+.btn-favorite:hover { border-color: var(--primary); }
+.btn-favorite.favorited { background: #fef3c7; color: #d97706; cursor: default; }
+
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+.tab-pane { min-height: 120px; }
+
+/* Essay display */
+.essay-text { font-size: 16px; line-height: 1.9; }
+.essay-opening { font-weight: 600; color: var(--primary); background: var(--primary-light); padding: 2px 6px; border-radius: 4px; }
+.para-label { display: inline-block; margin: 12px 0 4px; font-size: 12px; font-weight: 600; color: var(--text-secondary); letter-spacing: 1px; }
+.word-count { font-size: 13px; color: var(--text-secondary); font-style: italic; }
+
+/* Vocab */
+.vocab-card {
+  background: #f8fafc; border-radius: 8px;
+  padding: 14px 16px; margin-bottom: 10px;
+}
+.vocab-word-row { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+.vocab-card .word { font-size: 16px; font-weight: 700; color: var(--primary); }
+.vocab-card .phonetic { font-size: 13px; color: var(--text-secondary); font-family: "Times New Roman", serif; }
+.vocab-card .pos { font-size: 12px; color: var(--text-secondary); background: #e2e8f0; padding: 1px 8px; border-radius: 10px; }
+.vocab-card .meaning { font-size: 13px; color: var(--text-secondary); margin: 4px 0; }
+.vocab-card .usage { font-size: 13px; color: var(--text); font-style: italic; margin: 3px 0; }
+.vocab-examples { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border); }
+.example-item-text { font-size: 13px; color: var(--primary-hover); margin: 5px 0; line-height: 1.6; }
+.example-cn { color: var(--text-secondary); margin-left: 6px; font-size: 12px; }
+.vocab-save-btn { font-size: 12px !important; padding: 3px 10px !important; margin-left: auto; }
+
+/* Word search result */
+.word-result { padding: 16px; background: #f8fafc; border-radius: 8px; }
+.base-form-hint { font-size: 13px; color: #b45309; background: #fef3c7; padding: 8px 12px; border-radius: 6px; margin-bottom: 12px; }
+.base-form-hint .pos { font-size: 11px; margin: 0 2px; }
+.word-result .word-header { display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px; }
+.word-result .word-header .word { font-size: 20px; }
+.word-result .definition { font-size: 14px; color: var(--text); margin-bottom: 4px; }
+.word-result .def-label { font-weight: 700; color: var(--text-secondary); font-size: 13px; margin-right: 4px; }
+.word-forms { font-size: 13px; color: var(--text-secondary); margin: 10px 0; padding: 8px 12px; background: #fff; border-radius: 6px; border: 1px solid var(--border); }
+.word-result .sentences { margin-top: 10px; }
+.word-result .sentences .sen-item { font-size: 13px; color: var(--text); margin: 4px 0; padding-left: 12px; border-left: 2px solid var(--border); }
+
+/* Vocab fav card */
+.vocab-fav-item {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 14px; border-bottom: 1px solid var(--border);
+}
+.vocab-fav-item:last-child { border-bottom: none; }
+.vocab-fav-item .vf-info { flex: 1; min-width: 0; }
+.vocab-fav-item .vf-word { font-size: 15px; font-weight: 700; color: var(--primary); }
+.vocab-fav-item .vf-detail { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+
+
+/* Favorites */
+.fav-header {
+  font-size: 16px; font-weight: 700; margin-bottom: 12px;
+  color: var(--text); display: flex; align-items: center; gap: 6px;
+}
+.fav-count { font-weight: 400; color: var(--text-secondary); font-size: 14px; }
+.fav-item {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 14px 16px; border-bottom: 1px solid var(--border);
+}
+.fav-item:last-child { border-bottom: none; }
+.fav-info { flex: 1; min-width: 0; }
+.fav-topic { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fav-time { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+.fav-actions { display: flex; gap: 8px; flex-shrink: 0; margin-left: 12px; }
+.btn-sm {
+  padding: 6px 14px; border: 1px solid var(--border);
+  border-radius: 6px; font-size: 13px; cursor: pointer;
+  background: #fff; transition: all 0.2s;
+}
+.btn-sm:hover { border-color: var(--primary); color: var(--primary); }
+.btn-sm.danger { color: var(--danger); border-color: transparent; }
+.btn-sm.danger:hover { background: #fef2f2; border-color: var(--danger); }
+
+/* Exam format */
+.exam-format {
+  background: #fefce8; border: 1px solid #fde68a;
+  border-radius: var(--radius); padding: 18px 20px;
+  margin-bottom: 16px;
+}
+.exam-format .exam-title {
+  font-size: 15px; font-weight: 700; color: #92400e;
+  margin-bottom: 8px;
+}
+.exam-format .exam-body {
+  font-size: 14px; color: #78350f; line-height: 1.8;
+}
+.exam-format .exam-body .exam-quote {
+  font-weight: 700; color: var(--primary); background: var(--primary-light);
+  padding: 1px 6px; border-radius: 3px;
+}
+
+/* Empty & error */
+.empty-state { text-align: center; padding: 32px 16px; color: var(--text-secondary); font-size: 14px; }
+.error-msg { display: none; color: var(--danger); text-align: center; padding: 12px; font-size: 14px; }
+.error-msg.active { display: block; }
+
+/* Toast */
+.toast {
+  position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+  background: #1e293b; color: #fff; padding: 10px 24px;
+  border-radius: 8px; font-size: 14px; z-index: 1000;
+  opacity: 0; transition: opacity 0.3s; pointer-events: none;
+}
+.toast.show { opacity: 1; }
+
+.footer { text-align: center; padding: 16px; color: var(--text-secondary); font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>CET-6 作文助手</h1>
+    <p>输入作文开头句，AI 帮你生成高分范文 + 译文 + 讲解</p>
+    <div class="key-area" id="keyArea">
+      <input type="password" id="apiKeyInput" placeholder="输入你的 DeepSeek API Key" autocomplete="off">
+      <button class="btn-sm" id="btnSaveKey">保存</button>
+      <span class="key-status" id="keyStatus"></span>
+    </div>
+  </div>
+
+  <!-- Input -->
+  <div class="card">
+    <div class="input-area">
+      <input type="text" id="topicInput" placeholder="输入作文开头句，例如：In recent years, online education has become...">
+      <button class="btn-primary" id="btnGenerate">生成作文</button>
+    </div>
+    <div style="margin-top:14px">
+      <div class="examples-header">
+        <span>AI 推荐题目：</span>
+        <button class="btn-refresh" id="btnRefresh">换一批</button>
+      </div>
+      <div class="examples-list" id="examplesList"></div>
+    </div>
+  </div>
+
+  <!-- Loading -->
+  <div class="loading" id="loading">
+    <div class="spinner"></div>
+    <p>AI 正在为你撰写高分作文...</p>
+  </div>
+
+  <!-- Error -->
+  <div class="error-msg" id="errorMsg"></div>
+
+  <!-- Result -->
+  <div class="result-area" id="resultArea">
+    <!-- Exam format card -->
+    <div class="exam-format" id="examFormat">
+      <div class="exam-title">Writing (30 minutes)</div>
+      <div class="exam-body">
+        <strong>Directions:</strong> For this part, you are allowed 30 minutes to write an essay that begins with the sentence
+        <span class="exam-quote" id="examQuote">""</span>
+        You can make comments, cite examples or use your personal experiences to develop your essay.<br>
+        You should write at least <strong>150 words</strong> but no more than <strong>200 words</strong>.<br>
+        You should copy the sentence given in quotes at the beginning of your essay.
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="result-header">
+        <div class="tabs">
+          <button class="tab active" data-tab="essay">作文</button>
+          <button class="tab" data-tab="translation">译文</button>
+          <button class="tab" data-tab="vocabulary">词汇</button>
+        </div>
+        <button class="btn-favorite" id="btnFavorite">收藏</button>
+      </div>
+      <div class="tab-content active" id="tab-essay"><div class="tab-pane essay-text"></div></div>
+      <div class="tab-content" id="tab-translation"><div class="tab-pane essay-text"></div></div>
+      <div class="tab-content" id="tab-vocabulary"><div class="tab-pane"></div></div>
+    </div>
+  </div>
+
+  <!-- Word Search -->
+  <div class="card">
+    <div class="input-area">
+      <input type="text" id="wordSearchInput" placeholder="搜索单词，例如：remarkable、diligent、inevitable...">
+      <button class="btn-primary" id="btnSearchWord">查词</button>
+    </div>
+    <div id="wordSearchResult" style="margin-top:14px"></div>
+  </div>
+
+  <!-- Vocab Favorites -->
+  <div class="card">
+    <div class="fav-header">
+      词汇收藏 <span class="fav-count" id="vocabFavCount">(0 个)</span>
+    </div>
+    <div id="vocabFavList"></div>
+  </div>
+
+  <!-- Favorites -->
+  <div class="card">
+    <div class="fav-header">
+      作文收藏 <span class="fav-count" id="favCount">(0 篇)</span>
+    </div>
+    <div id="favoritesList"></div>
+  </div>
+
+  <div class="footer">CET-6 作文助手 · 数据保存在本地浏览器</div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ==================== 配置 ====================
+const DEEPSEEK_URL = 'https://api.deepseek.com/v1/chat/completions';
+const FAV_KEY = 'cet6_favorites';
+const VFAV_KEY = 'cet6_vocab_favorites';
+const KEY_STORAGE = 'cet6_api_key';
+
+function getApiKey() {
+  return localStorage.getItem(KEY_STORAGE) || '';
+}
+function setApiKey(key) {
+  localStorage.setItem(KEY_STORAGE, key.trim());
+}
+
+// ==================== 例句（API 实时生成） ====================
+async function fetchExamples() {
+  if (!getApiKey()) { $exList.innerHTML = '<div class="empty-state" style="padding:12px">请先在顶部输入 API Key</div>'; return; }
+  $exList.innerHTML = '<div class="example-item" style="cursor:default;opacity:0.6">AI 正在生成题目...</div>';
+  try {
+    const res = await fetch(DEEPSEEK_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${getApiKey()}`
+      },
+      body: JSON.stringify({
+        model: 'deepseek-chat',
+        messages: [
+          { role: 'system', content: '你是 CET-6 命题专家。只返回 JSON，不要任何其他内容。' },
+          { role: 'user', content: `生成5个 CET-6 英语作文开头句。要求：
+1. 每个句子是完整的陈述句，可作为作文的第一句
+2. 覆盖不同热门话题（科技、教育、环境、社会、文化、健康等），尽量不重复领域
+3. 句子长度适中（15-30词），适合六级水平
+4. 语法正确，表达地道
+5. 每个句子都能引出观点的讨论空间
+
+返回严格的 JSON 数组（不要 markdown 代码块）：
+["句子1", "句子2", "句子3", "句子4", "句子5"]` }
+        ],
+        temperature: 1.2,
+        max_tokens: 1024
+      })
+    });
+
+    if (!res.ok) throw new Error('获取例句失败');
+    const data = await res.json();
+    let content = data.choices[0].message.content.trim();
+    const m = content.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
+    if (m) content = m[1].trim();
+
+    const sentences = JSON.parse(content);
+    if (!Array.isArray(sentences) || sentences.length === 0) throw new Error('格式异常');
+
+    $exList.innerHTML = sentences.map(s =>
+      `<div class="example-item" data-sentence="${esc(s)}">${esc(s)}</div>`
+    ).join('');
+  } catch (e) {
+    console.error(e);
+    $exList.innerHTML = '<div class="empty-state" style="padding:12px;color:var(--danger)">例句加载失败，<a href="javascript:location.reload()" style="color:var(--primary)">刷新页面</a>重试</div>';
+  }
+}
+
+// ==================== DOM refs ====================
+const $input = document.getElementById('topicInput');
+const $genBtn = document.getElementById('btnGenerate');
+const $exList = document.getElementById('examplesList');
+const $refresh = document.getElementById('btnRefresh');
+const $loading = document.getElementById('loading');
+const $error = document.getElementById('errorMsg');
+const $result = document.getElementById('resultArea');
+const $favBtn = document.getElementById('btnFavorite');
+const $tabs = document.querySelectorAll('.tab');
+const $panes = document.querySelectorAll('.tab-content');
+const $favList = document.getElementById('favoritesList');
+const $favCnt = document.getElementById('favCount');
+const $toast = document.getElementById('toast');
+const $wordSearchInput = document.getElementById('wordSearchInput');
+const $btnSearchWord = document.getElementById('btnSearchWord');
+const $wordSearchResult = document.getElementById('wordSearchResult');
+const $vocabFavList = document.getElementById('vocabFavList');
+const $vocabFavCnt = document.getElementById('vocabFavCount');
+const $keyArea = document.getElementById('keyArea');
+const $apiKeyInput = document.getElementById('apiKeyInput');
+const $btnSaveKey = document.getElementById('btnSaveKey');
+const $keyStatus = document.getElementById('keyStatus');
+
+// ==================== Utils ====================
+let toastTimer;
+function toast(msg) {
+  $toast.textContent = msg;
+  $toast.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => $toast.classList.remove('show'), 2200);
+}
+
+function err(msg) { $error.textContent = msg; $error.classList.add('active'); }
+function clearErr() { $error.classList.remove('active'); }
+
+function esc(str) {
+  const d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
+}
+
+function fmtTime(date) {
+  const d = new Date(date);
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+
+// ==================== Examples ====================
+function renderExamples() {
+  $exList.innerHTML = pickSamples(5).map(s =>
+    `<div class="example-item" data-sentence="${esc(s)}">${esc(s)}</div>`
+  ).join('');
+}
+
+// ==================== API ====================
+let curResult = null; // { topic, essay, translation, vocabulary }
+
+function buildPrompt(topic) {
+  return `你是一位专业 CET-6 阅卷老师。请根据以下开头句，严格按照 CET-6 评分标准生成一篇高分作文。
+
+【硬性要求——必须遵守】
+1. 作文必须分为三个自然段，用两个空行隔开段落，在段首标注 // Paragraph 1 //、// Paragraph 2 //、// Paragraph 3 //：
+   - Paragraph 1 (Introduction): 以给定句子开头，引出话题并表明自己的立场/观点
+   - Paragraph 2 (Body): 提供2-3个论据或例证来支撑观点，可引用个人经历或社会现象
+   - Paragraph 3 (Conclusion): 总结全文，升华主题，提出展望
+2. 总字数严格控制在 150-200 词（单词个数，不是字符数）
+3. 必须以给定的句子作为作文第一句，一字不改
+4. 从作文中挑选 8-10 个真正有难度、值得六级考生重点掌握的词汇进行讲解
+
+【词汇挑选标准——只选以下类型的词，不要选简单词！】
+- 六级/考研/雅思级别的高级词汇（如：exacerbate, imperative, formidable, ubiquitous, paradigm, scrutinize, alleviate, detrimental, prevalent 等）
+- 地道的高级短语搭配（如：hinge on, grapple with, take precedence over, in the wake of 等）
+- 熟词的生僻义项（如：address 作"解决"、harbor 作"怀有"）
+- 学术写作常用词（如：consequently, nevertheless, fundamentally, inherent, notwithstanding 等）
+- 禁止选基础词汇（如：important, good, bad, make, do, think, people, thing 等）
+
+【例句要求】
+- 每个例句本身要有难度，包含其他高级词汇或复杂句式
+- 例句应适合直接用在六级作文中（学术、正式、有说服力）
+- 每个例句后紧跟中文翻译，格式为 {"en": "英文", "cn": "中文翻译"}
+
+返回严格的 JSON 格式（不要包含 markdown 代码块标记）：
+{
+  "essay": "// Paragraph 1 //\\n完整英文段落\\n\\n// Paragraph 2 //\\n完整英文段落\\n\\n// Paragraph 3 //\\n完整英文段落",
+  "translation": "// 第一段 //\\n中文翻译\\n\\n// 第二段 //\\n中文翻译\\n\\n// 第三段 //\\n中文翻译",
+  "vocabulary": [{"word": "高级词汇", "phonetic": "音标", "pos": "词性", "meaning": "中文释义", "usage": "文中原句用法", "examples": [{"en": "英文例句", "cn": "中文翻译"}]}]
+}
+
+开头句：${topic}`;
+}
+
+async function generate(topic) {
+  $loading.classList.add('active');
+  $result.classList.remove('active');
+  clearErr();
+  try {
+    const res = await fetch(DEEPSEEK_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${getApiKey()}`
+      },
+      body: JSON.stringify({
+        model: 'deepseek-chat',
+        messages: [
+          { role: 'system', content: '你是一位专业的 CET-6 英语写作辅导老师。始终返回合法的 JSON。' },
+          { role: 'user', content: buildPrompt(topic) }
+        ],
+        temperature: 0.7,
+        max_tokens: 4096
+      })
+    });
+
+    if (!res.ok) {
+      const e = await res.json().catch(() => ({}));
+      throw new Error(e.error?.message || `API 请求失败 (${res.status})`);
+    }
+
+    const data = await res.json();
+    const content = data.choices[0].message.content.trim();
+
+    // strip code fences if present
+    let jsonStr = content;
+    const m = content.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
+    if (m) jsonStr = m[1].trim();
+
+    let parsed;
+    try { parsed = JSON.parse(jsonStr); } catch {
+      throw new Error('AI 返回格式异常，请重试。');
+    }
+    if (!parsed.essay || !parsed.translation) {
+      throw new Error('AI 返回数据不完整，请重试。');
+    }
+    return parsed;
+  } finally {
+    $loading.classList.remove('active');
+  }
+}
+
+// ==================== Render ====================
+function renderEssay(topic, essay) {
+  const head = esc(topic);
+  // Count words
+  const wordCount = essay.split(/[\s\n]+/).filter(w => w.length > 0 && !w.match(/^\/\/\s*Paragraph/i)).length;
+
+  // Remove paragraph markers
+  let body = essay.replace(/\/\/\s*Paragraph\s*\d\s*\/\//gi, '');
+
+  // Strip the opening topic from body (already shown in highlight span)
+  // Handle case where AI may have added a space/newline after the topic
+  const idx = body.indexOf(topic);
+  if (idx !== -1) {
+    body = body.slice(idx + topic.length);
+  }
+  body = esc(body.trim());
+  // Single <br> between paragraphs (originally \n\n from AI)
+  body = body.replace(/\n\n/g, '<br>');
+  body = body.replace(/\n/g, '<br>');
+
+  document.querySelector('#tab-essay .tab-pane').innerHTML =
+    `<span class="essay-opening">"${head}"</span>${body}<br><span class="word-count">（${wordCount} 词，CET-6 要求 150-200 词）</span>`;
+}
+
+function renderTrans(translation) {
+  let text = translation.replace(/\/\/\s*第[一二三]段\s*\/\//g, '');
+  text = esc(text.trim());
+  text = text.replace(/\n\n/g, '<br>');
+  text = text.replace(/\n/g, '<br>');
+  document.querySelector('#tab-translation .tab-pane').innerHTML = text;
+}
+
+function renderVocab(vocab) {
+  const el = document.querySelector('#tab-vocabulary .tab-pane');
+  if (!vocab || !vocab.length) {
+    el.innerHTML = '<div class="empty-state">暂无词汇讲解</div>'; return;
+  }
+  el.innerHTML = vocab.map(v => `
+    <div class="vocab-card">
+      <div class="vocab-word-row">
+        <span class="word">${esc(v.word)}</span>
+        ${v.phonetic ? `<span class="phonetic">${esc(v.phonetic)}</span>` : ''}
+        ${v.pos ? `<span class="pos">${esc(v.pos)}</span>` : ''}
+        <button class="btn-sm vocab-save-btn" data-vocab='${esc(JSON.stringify(v))}'>收藏</button>
+      </div>
+      <div class="meaning">释义：${esc(v.meaning)}</div>
+      ${v.usage ? `<div class="usage">文中用法："${esc(v.usage)}"</div>` : ''}
+      ${v.examples && v.examples.length ? `
+        <div class="vocab-examples">
+          ${v.examples.map((ex, i) => {
+            const en = typeof ex === 'string' ? ex : (ex.en || '');
+            const cn = typeof ex === 'string' ? '' : (ex.cn || '');
+            return `<div class="example-item-text">${i + 1}. ${esc(en)}${cn ? `<span class="example-cn">${esc(cn)}</span>` : ''}</div>`;
+          }).join('')}
+        </div>
+      ` : ''}
+    </div>
+  `).join('');
+}
+
+function showResult(topic, data) {
+  curResult = { topic, ...data, savedAt: fmtTime(new Date()) };
+
+  // Update exam format with the quoted sentence
+  document.getElementById('examQuote').textContent = `"${topic}"`;
+
+  renderEssay(topic, data.essay);
+  renderTrans(data.translation);
+  renderVocab(data.vocabulary);
+
+  $result.classList.add('active');
+  updateFavBtn();
+  switchTab('essay');
+  $result.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function updateFavBtn() {
+  if (!curResult) return;
+  const favs = getFavs();
+  const dup = favs.some(f => f.topic === curResult.topic && f.essay === curResult.essay);
+  $favBtn.textContent = dup ? '已收藏' : '收藏';
+  $favBtn.classList.toggle('favorited', dup);
+}
+
+function switchTab(name) {
+  $tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+  $panes.forEach(p => p.classList.toggle('active', p.id === `tab-${name}`));
+}
+
+// ==================== Favorites CRUD ====================
+function getFavs() {
+  try { return JSON.parse(localStorage.getItem(FAV_KEY) || '[]'); } catch { return []; }
+}
+function setFavs(favs) { localStorage.setItem(FAV_KEY, JSON.stringify(favs)); }
+
+function addFav() {
+  if (!curResult) return;
+  const favs = getFavs();
+  if (favs.some(f => f.topic === curResult.topic && f.essay === curResult.essay)) {
+    toast('这篇作文已经收藏过了'); return;
+  }
+  favs.unshift({
+    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 8),
+    topic: curResult.topic,
+    essay: curResult.essay,
+    translation: curResult.translation,
+    vocabulary: curResult.vocabulary || [],
+    createdAt: curResult.savedAt
+  });
+  setFavs(favs);
+  renderFavs();
+  updateFavBtn();
+  toast('已收藏');
+}
+
+function delFav(id) {
+  if (!confirm('确定要删除这篇收藏吗？')) return;
+  setFavs(getFavs().filter(f => f.id !== id));
+  renderFavs();
+  updateFavBtn();
+  toast('已删除');
+}
+
+function viewFav(id) {
+  const f = getFavs().find(x => x.id === id);
+  if (!f) return;
+  showResult(f.topic, {
+    essay: f.essay,
+    translation: f.translation,
+    vocabulary: f.vocabulary
+  });
+}
+
+function renderFavs() {
+  const favs = getFavs();
+  $favCnt.textContent = `(${favs.length} 篇)`;
+  if (!favs.length) {
+    $favList.innerHTML = '<div class="empty-state">还没有收藏的作文，生成后点击收藏即可保存</div>';
+    return;
+  }
+  $favList.innerHTML = favs.map(f => `
+    <div class="fav-item">
+      <div class="fav-info">
+        <div class="fav-topic" title="${esc(f.topic)}">${esc(f.topic)}</div>
+        <div class="fav-time">${f.createdAt}</div>
+      </div>
+      <div class="fav-actions">
+        <button class="btn-sm" data-act="view" data-id="${f.id}">查看</button>
+        <button class="btn-sm danger" data-act="del" data-id="${f.id}">删除</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+// ==================== Word Search ====================
+async function searchWord(word) {
+  if (!getApiKey()) { $wordSearchResult.innerHTML = '<div class="empty-state">请先在顶部输入 API Key</div>'; return; }
+  $wordSearchResult.innerHTML = '<div class="empty-state">查询中...</div>';
+  try {
+    const res = await fetch(DEEPSEEK_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${getApiKey()}`
+      },
+      body: JSON.stringify({
+        model: 'deepseek-chat',
+        messages: [
+          { role: 'system', content: '你是英语词典专家。只返回 JSON，不要其他。' },
+          { role: 'user', content: `查询单词"${word}"。先判断是否为变形（现在分词、过去式、过去分词、复数、三单、比较级、最高级等）。若是变形则还原为原形再查询。返回 JSON：
+{
+  "word": "必须填原形！如输入automating这里填automate，输入better这里填good",
+  "baseForm": "若是变形则填原形（与word相同），否则空",
+  "inflection": "若是变形填具体类型（现在分词/过去式/过去分词/复数/比较级/最高级/三单），否则空",
+  "phonetic": "原形的音标",
+  "pos": "词性",
+  "definitions": ["n. 释义", "v. 释义"],
+  "forms": "其他变形",
+  "sentences": ["例句1", "例句2", "例句3"]
+}` }
+        ],
+        temperature: 0.3,
+        max_tokens: 1024
+      })
+    });
+    if (!res.ok) throw new Error('查询失败');
+    const data = await res.json();
+    let content = data.choices[0].message.content.trim();
+    const m = content.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
+    if (m) content = m[1].trim();
+    const info = JSON.parse(content);
+
+    // Always use baseForm as display word when available (AI may return inflected form in word field)
+    const displayWord = info.baseForm || info.word;
+    const baseFormHint = info.baseForm
+      ? `<div class="base-form-hint">← 你搜的 <strong>"${esc(word)}"</strong> 是 <strong>${esc(displayWord)}</strong> 的<strong>${esc(info.inflection)}</strong>，以下为原形查询结果</div>`
+      : '';
+
+    $wordSearchResult.innerHTML = `
+      <div class="word-result">
+        ${baseFormHint}
+        <div class="word-header">
+          <span class="word">${esc(displayWord)}</span>
+          ${info.phonetic ? `<span class="phonetic">${esc(info.phonetic)}</span>` : ''}
+          ${info.pos ? `<span class="pos">${esc(info.pos)}</span>` : ''}
+          <button class="btn-sm" id="btnSaveVocab">收藏单词</button>
+        </div>
+        ${info.definitions ? info.definitions.map((d, i) => `<div class="definition"><span class="def-label">${i + 1}.</span>${esc(d)}</div>`).join('') : ''}
+        ${info.forms ? `<div class="word-forms">其他变形：${esc(info.forms)}</div>` : ''}
+        ${info.sentences ? `<div class="sentences">${info.sentences.map((s, i) => `<div class="sen-item">${i + 1}. ${esc(s)}</div>`).join('')}</div>` : ''}
+      </div>`;
+    $wordSearchResult._wordData = { ...info, word: displayWord };
+  } catch (e) {
+    console.error(e);
+    $wordSearchResult.innerHTML = '<div class="empty-state" style="color:var(--danger)">查询失败，请检查单词拼写后重试</div>';
+  }
+}
+
+// ==================== Vocab Favorites ====================
+function getVFavs() {
+  try { return JSON.parse(localStorage.getItem(VFAV_KEY) || '[]'); } catch { return []; }
+}
+function setVFavs(vs) { localStorage.setItem(VFAV_KEY, JSON.stringify(vs)); }
+
+function addVFav(vocab) {
+  const favs = getVFavs();
+  if (favs.some(f => f.word === vocab.word)) {
+    toast('该单词已收藏'); return;
+  }
+  favs.unshift({
+    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 8),
+    word: vocab.word,
+    phonetic: vocab.phonetic || '',
+    pos: vocab.pos || '',
+    meaning: vocab.meaning || (vocab.definitions ? vocab.definitions.join('；') : ''),
+    examples: vocab.examples || vocab.sentences || [],
+    createdAt: fmtTime(new Date())
+  });
+  setVFavs(favs);
+  renderVFavs();
+  toast('单词已收藏');
+}
+
+function delVFav(id) {
+  if (!confirm('确定要删除这个词汇吗？')) return;
+  setVFavs(getVFavs().filter(f => f.id !== id));
+  renderVFavs();
+  toast('已删除');
+}
+
+function renderVFavs() {
+  const favs = getVFavs();
+  $vocabFavCnt.textContent = `(${favs.length} 个)`;
+  if (!favs.length) {
+    $vocabFavList.innerHTML = '<div class="empty-state">还没有收藏的词汇，搜索单词后点击收藏即可保存</div>';
+    return;
+  }
+  $vocabFavList.innerHTML = favs.map(f => `
+    <div class="vocab-fav-item">
+      <div class="vf-info">
+        <div class="vf-word">${esc(f.word)} ${f.phonetic ? `<span class="phonetic">${esc(f.phonetic)}</span>` : ''} ${f.pos ? `<span class="pos">${esc(f.pos)}</span>` : ''}</div>
+        <div class="vf-detail">${esc(f.meaning)} · ${f.createdAt}</div>
+      </div>
+      <div class="fav-actions">
+        <button class="btn-sm danger" data-act="delvfav" data-id="${f.id}">删除</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+// ==================== Events ====================
+$genBtn.addEventListener('click', async () => {
+  const topic = $input.value.trim();
+  if (!topic) { toast('请先输入作文开头句'); return; }
+
+  if (!getApiKey()) { toast('请先在顶部输入 API Key'); return; }
+  clearErr();
+  $genBtn.disabled = true;
+  $genBtn.textContent = '生成中...';
+
+  try {
+    const data = await generate(topic);
+    showResult(topic, data);
+  } catch (e) {
+    err(e.message || '生成失败，请检查网络后重试');
+  } finally {
+    $genBtn.disabled = false;
+    $genBtn.textContent = '生成作文';
+  }
+});
+
+$input.addEventListener('keydown', e => { if (e.key === 'Enter') $genBtn.click(); });
+
+$exList.addEventListener('click', e => {
+  const el = e.target.closest('.example-item');
+  if (!el || !el.dataset.sentence) return;
+  $input.value = el.dataset.sentence;
+  $input.focus();
+});
+
+$refresh.addEventListener('click', fetchExamples);
+
+$tabs.forEach(t => t.addEventListener('click', () => switchTab(t.dataset.tab)));
+
+$favBtn.addEventListener('click', addFav);
+
+$favList.addEventListener('click', e => {
+  const btn = e.target.closest('button');
+  if (!btn) return;
+  const { act, id } = btn.dataset;
+  if (act === 'view') viewFav(id);
+  if (act === 'del') delFav(id);
+});
+
+// Word search
+$btnSearchWord.addEventListener('click', () => {
+  const w = $wordSearchInput.value.trim();
+  if (!w) { toast('请输入要查询的单词'); return; }
+  searchWord(w);
+});
+$wordSearchInput.addEventListener('keydown', e => { if (e.key === 'Enter') $btnSearchWord.click(); });
+
+// Save word from search result
+$wordSearchResult.addEventListener('click', e => {
+  if (e.target.id === 'btnSaveVocab' && $wordSearchResult._wordData) {
+    addVFav($wordSearchResult._wordData);
+  }
+});
+
+// Save word from essay vocab list
+document.querySelector('#tab-vocabulary .tab-pane').addEventListener('click', e => {
+  const btn = e.target.closest('.vocab-save-btn');
+  if (!btn) return;
+  try {
+    const vocab = JSON.parse(btn.dataset.vocab);
+    addVFav(vocab);
+  } catch {}
+});
+
+// Vocab favorites delete
+$vocabFavList.addEventListener('click', e => {
+  const btn = e.target.closest('button');
+  if (!btn) return;
+  const { act, id } = btn.dataset;
+  if (act === 'delvfav') delVFav(id);
+});
+
+// ==================== Key management ====================
+function initKey() {
+  const saved = getApiKey();
+  if (saved) {
+    $keyArea.classList.add('saved');
+    $apiKeyInput.style.display = 'none';
+    $btnSaveKey.style.display = 'none';
+    $keyStatus.style.display = 'inline';
+    $keyStatus.textContent = 'API Key 已保存（点击更换）';
+  }
+}
+
+function saveKey() {
+  const key = $apiKeyInput.value.trim();
+  if (!key) { toast('请输入 API Key'); return; }
+  if (!key.startsWith('sk-')) { toast('Key 格式不正确，应以 sk- 开头'); return; }
+  setApiKey(key);
+  $apiKeyInput.value = '';
+  $wordSearchResult.innerHTML = '';
+  initKey();
+  toast('Key 已保存');
+  fetchExamples();
+}
+
+$btnSaveKey.addEventListener('click', saveKey);
+$apiKeyInput.addEventListener('keydown', e => { if (e.key === 'Enter') saveKey(); });
+$keyStatus.addEventListener('click', () => {
+  if (confirm('确定要更换 API Key 吗？')) {
+    localStorage.removeItem(KEY_STORAGE);
+    location.reload();
+  }
+});
+
+// ==================== Init ====================
+initKey();
+fetchExamples();
+renderFavs();
+renderVFavs();
+</script>
+</body>
+</html>
