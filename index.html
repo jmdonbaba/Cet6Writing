@@ -175,7 +175,89 @@ body {
 .vocab-fav-item .vf-detail { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
 
 
-/* Favorites */
+/* Favorites nav buttons */
+.fav-btns { display: flex; gap: 10px; margin-bottom: 16px; }
+.btn-fav-nav {
+  flex: 1; padding: 14px 20px; background: var(--card-bg);
+  border: 2px solid var(--border); border-radius: var(--radius);
+  font-size: 15px; font-weight: 600; cursor: pointer;
+  color: var(--text); transition: all 0.2s;
+  box-shadow: var(--shadow);
+}
+.btn-fav-nav:hover { border-color: var(--primary); color: var(--primary); }
+
+/* Modal */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.4);
+  z-index: 999; display: flex; align-items: center; justify-content: center;
+}
+.modal-card {
+  background: var(--card-bg); border-radius: var(--radius);
+  width: 90%; max-width: 700px; max-height: 80vh;
+  display: none; flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+}
+.modal-card.active { display: flex; }
+.modal-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 18px 20px; border-bottom: 1px solid var(--border);
+  font-size: 17px; font-weight: 700;
+}
+.modal-close {
+  background: none; border: none; font-size: 24px;
+  cursor: pointer; color: var(--text-secondary); padding: 0 4px;
+}
+.modal-close:hover { color: var(--danger); }
+.modal-body { flex: 1; overflow-y: auto; padding: 8px 20px 20px; }
+
+/* Three-dot menu */
+.more-btn {
+  background: none; border: none; font-size: 18px; cursor: pointer;
+  color: var(--text-secondary); padding: 4px 8px; border-radius: 6px;
+  line-height: 1;
+}
+.more-btn:hover { background: var(--border); color: var(--text); }
+.more-menu {
+  display: none; position: absolute; right: 20px;
+  background: var(--card-bg); border: 1px solid var(--border);
+  border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+  z-index: 10; min-width: 100px; overflow: hidden;
+}
+.more-menu.open { display: block; }
+.more-menu button {
+  display: block; width: 100%; padding: 10px 16px; border: none;
+  background: none; font-size: 14px; cursor: pointer; text-align: left;
+  color: var(--text);
+}
+.more-menu button:hover { background: var(--primary-light); }
+.more-menu button.danger { color: var(--danger); }
+.more-menu button.danger:hover { background: #fef2f2; }
+.vf-compact.pinned { background: #f1f5f9; }
+.fav-item.pinned { background: #f1f5f9; }
+
+/* Vocab fav compact item */
+.vf-compact {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 12px 16px; border-bottom: 1px solid var(--border);
+  cursor: pointer; transition: background 0.15s;
+}
+.vf-compact:hover { background: var(--primary-light); }
+.vf-compact .vf-main { flex: 1; min-width: 0; }
+.vf-compact .vf-word { font-size: 16px; font-weight: 700; color: var(--primary); }
+.vf-compact .vf-brief { font-size: 13px; color: var(--text-secondary); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vf-detail {
+  display: none; padding: 0 16px 14px; border-bottom: 1px solid var(--border);
+  background: #fafbfc;
+}
+.vf-detail.open { display: block; }
+.vf-detail .vf-def { font-size: 14px; color: var(--text); margin: 6px 0 4px; }
+.vf-detail .vf-def-label { font-weight: 600; color: var(--text-secondary); font-size: 13px; }
+.vf-detail .vf-phonetic { font-size: 13px; color: var(--text-secondary); margin: 4px 0; }
+.vf-detail .vf-sen { font-size: 13px; color: var(--primary-hover); margin: 3px 0 3px 8px; }
+.vf-detail .vf-sen-cn { color: var(--text-secondary); margin-left: 4px; }
+.vf-detail .vf-forms { font-size: 12px; color: var(--text-secondary); margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--border); }
+
+/* Old favorites (keep for compat) */
 .fav-header {
   font-size: 16px; font-weight: 700; margin-bottom: 12px;
   color: var(--text); display: flex; align-items: center; gap: 6px;
@@ -308,26 +390,34 @@ body {
     <div id="wordSearchResult" style="margin-top:14px"></div>
   </div>
 
-  <!-- Vocab Favorites -->
-  <div class="card">
-    <div class="fav-header">
-      词汇收藏 <span class="fav-count" id="vocabFavCount">(0 个)</span>
-    </div>
-    <div id="vocabFavList"></div>
-  </div>
-
-  <!-- Favorites -->
-  <div class="card">
-    <div class="fav-header">
-      作文收藏 <span class="fav-count" id="favCount">(0 篇)</span>
-    </div>
-    <div id="favoritesList"></div>
+  <!-- Favorites buttons -->
+  <div class="fav-btns">
+    <button class="btn-fav-nav" id="btnOpenVocabFav">词汇收藏 <span id="vocabFavCount">(0)</span></button>
+    <button class="btn-fav-nav" id="btnOpenEssayFav">作文收藏 <span id="favCount">(0)</span></button>
   </div>
 
   <div class="footer">CET-6 作文助手 · 数据保存在本地浏览器</div>
 </div>
 
 <div class="toast" id="toast"></div>
+
+<!-- Modal overlay -->
+<div class="modal-overlay" id="modalOverlay" style="display:none">
+  <div class="modal-card" id="modalVocabFav">
+    <div class="modal-header">
+      <span>词汇收藏 (<span id="modalVocabCount">0</span>)</span>
+      <button class="modal-close" data-close="modalVocabFav">&times;</button>
+    </div>
+    <div class="modal-body" id="modalVocabBody"></div>
+  </div>
+  <div class="modal-card" id="modalEssayFav">
+    <div class="modal-header">
+      <span>作文收藏 (<span id="modalEssayCount">0</span>)</span>
+      <button class="modal-close" data-close="modalEssayFav">&times;</button>
+    </div>
+    <div class="modal-body" id="modalEssayBody"></div>
+  </div>
+</div>
 
 <script>
 // ==================== 配置 ====================
@@ -402,14 +492,19 @@ const $result = document.getElementById('resultArea');
 const $favBtn = document.getElementById('btnFavorite');
 const $tabs = document.querySelectorAll('.tab');
 const $panes = document.querySelectorAll('.tab-content');
-const $favList = document.getElementById('favoritesList');
 const $favCnt = document.getElementById('favCount');
 const $toast = document.getElementById('toast');
 const $wordSearchInput = document.getElementById('wordSearchInput');
 const $btnSearchWord = document.getElementById('btnSearchWord');
 const $wordSearchResult = document.getElementById('wordSearchResult');
-const $vocabFavList = document.getElementById('vocabFavList');
 const $vocabFavCnt = document.getElementById('vocabFavCount');
+const $modalOverlay = document.getElementById('modalOverlay');
+const $modalVocabFav = document.getElementById('modalVocabFav');
+const $modalEssayFav = document.getElementById('modalEssayFav');
+const $modalVocabBody = document.getElementById('modalVocabBody');
+const $modalEssayBody = document.getElementById('modalEssayBody');
+const $modalVocabCount = document.getElementById('modalVocabCount');
+const $modalEssayCount = document.getElementById('modalEssayCount');
 const $keyArea = document.getElementById('keyArea');
 const $apiKeyInput = document.getElementById('apiKeyInput');
 const $btnSaveKey = document.getElementById('btnSaveKey');
@@ -574,7 +669,7 @@ function renderVocab(vocab) {
         <span class="word">${esc(v.word)}</span>
         ${v.phonetic ? `<span class="phonetic">${esc(v.phonetic)}</span>` : ''}
         ${v.pos ? `<span class="pos">${esc(v.pos)}</span>` : ''}
-        <button class="btn-sm vocab-save-btn" data-vocab='${esc(JSON.stringify(v))}'>收藏</button>
+        <button class="btn-sm vocab-save-btn btn-favorite" data-vocab='${esc(JSON.stringify(v))}'>收藏</button>
       </div>
       <div class="meaning">释义：${esc(v.meaning)}</div>
       ${v.usage ? `<div class="usage">文中用法："${esc(v.usage)}"</div>` : ''}
@@ -589,6 +684,17 @@ function renderVocab(vocab) {
       ` : ''}
     </div>
   `).join('');
+  // Mark already-favorited vocab buttons
+  const vfavs = getVFavs();
+  el.querySelectorAll('.vocab-save-btn').forEach(btn => {
+    try {
+      const v = JSON.parse(btn.dataset.vocab);
+      if (vfavs.some(f => f.word === v.word)) {
+        btn.textContent = '已收藏';
+        btn.classList.add('favorited');
+      }
+    } catch {}
+  });
 }
 
 function showResult(topic, data) {
@@ -653,6 +759,36 @@ function delFav(id) {
   updateFavBtn();
   toast('已删除');
 }
+function pinFav(id) {
+  const favs = getFavs();
+  const idx = favs.findIndex(f => f.id === id);
+  if (idx === -1) return;
+  const item = favs[idx];
+  if (item.pinned) {
+    // Unpin: restore to chronological position among unpinned items
+    item.pinned = false;
+    favs.splice(idx, 1);
+    // Find insertion point: after all pinned, before items older than this one
+    let insertAt = favs.findIndex(f => !f.pinned); // first unpinned
+    if (insertAt === -1) insertAt = favs.length;
+    // Insert at correct time order within unpinned
+    while (insertAt < favs.length && !favs[insertAt].pinned && favs[insertAt].createdAt >= item.createdAt) insertAt++;
+    favs.splice(insertAt, 0, item);
+    setFavs(favs);
+    renderFavs();
+    toast('已取消置顶');
+  } else {
+    // Pin: move to top of pinned section
+    item.pinned = true;
+    favs.splice(idx, 1);
+    const firstUnpinned = favs.findIndex(f => !f.pinned);
+    const pinPos = firstUnpinned === -1 ? favs.length : firstUnpinned;
+    favs.splice(pinPos, 0, item);
+    setFavs(favs);
+    renderFavs();
+    toast('已置顶');
+  }
+}
 
 function viewFav(id) {
   const f = getFavs().find(x => x.id === id);
@@ -666,20 +802,25 @@ function viewFav(id) {
 
 function renderFavs() {
   const favs = getFavs();
-  $favCnt.textContent = `(${favs.length} 篇)`;
+  $favCnt.textContent = `(${favs.length})`;
+  $modalEssayCount.textContent = favs.length;
   if (!favs.length) {
-    $favList.innerHTML = '<div class="empty-state">还没有收藏的作文，生成后点击收藏即可保存</div>';
+    $modalEssayBody.innerHTML = '<div class="empty-state">还没有收藏的作文，生成后点击收藏即可保存</div>';
     return;
   }
-  $favList.innerHTML = favs.map(f => `
-    <div class="fav-item">
+  $modalEssayBody.innerHTML = favs.map(f => `
+    <div class="fav-item${f.pinned ? ' pinned' : ''}">
       <div class="fav-info">
         <div class="fav-topic" title="${esc(f.topic)}">${esc(f.topic)}</div>
         <div class="fav-time">${f.createdAt}</div>
       </div>
-      <div class="fav-actions">
+      <div class="fav-actions" style="position:relative">
         <button class="btn-sm" data-act="view" data-id="${f.id}">查看</button>
-        <button class="btn-sm danger" data-act="del" data-id="${f.id}">删除</button>
+        <button class="more-btn" data-act="moreessay" data-id="${f.id}">&ctdot;</button>
+        <div class="more-menu" data-menu="essay-${f.id}">
+          <button data-act="pinessay" data-id="${f.id}">${f.pinned ? '取消置顶' : '置顶'}</button>
+          <button class="danger" data-act="delessay" data-id="${f.id}">删除</button>
+        </div>
       </div>
     </div>
   `).join('');
@@ -700,17 +841,22 @@ async function searchWord(word) {
         model: 'deepseek-chat',
         messages: [
           { role: 'system', content: '你是英语词典专家。只返回 JSON，不要其他。' },
-          { role: 'user', content: `查询单词"${word}"。先判断是否为变形（现在分词、过去式、过去分词、复数、三单、比较级、最高级等）。若是变形则还原为原形再查询。返回 JSON：
+          { role: 'user', content: `查询单词"${word}"。先判断是否为变形（现在分词、过去式、过去分词、复数、三单、比较级、最高级等）。若是变形则还原为原形再查询。
+
+【例句要求】每个例句要有难度，含六级高级词汇或复杂句型，学术正式、适合直接用在作文中。
+
+返回 JSON（sentences必须恰好3个）：
 {
-  "word": "必须填原形！如输入automating这里填automate，输入better这里填good",
-  "baseForm": "若是变形则填原形（与word相同），否则空",
-  "inflection": "若是变形填具体类型（现在分词/过去式/过去分词/复数/比较级/最高级/三单），否则空",
+  "word": "必须填原形！如输入automating这里填automate",
+  "baseForm": "若是变形则填原形，否则空",
+  "inflection": "若有baseForm必须填类型（过去式/过去分词/现在分词/复数/比较级/最高级/三单），不可为空",
   "phonetic": "原形的音标",
   "pos": "词性",
   "definitions": ["n. 释义", "v. 释义"],
   "forms": "其他变形",
-  "sentences": ["例句1", "例句2", "例句3"]
+  "sentences": [{"en": "英文例句1", "cn": "中文翻译1"}, {"en": "英文例句2", "cn": "中文翻译2"}, {"en": "英文例句3", "cn": "中文翻译3"}]
 }` }
+
         ],
         temperature: 0.3,
         max_tokens: 1024
@@ -726,7 +872,7 @@ async function searchWord(word) {
     // Always use baseForm as display word when available (AI may return inflected form in word field)
     const displayWord = info.baseForm || info.word;
     const baseFormHint = info.baseForm
-      ? `<div class="base-form-hint">← 你搜的 <strong>"${esc(word)}"</strong> 是 <strong>${esc(displayWord)}</strong> 的<strong>${esc(info.inflection)}</strong>，以下为原形查询结果</div>`
+      ? `<div class="base-form-hint">← 你搜的 <strong>"${esc(word)}"</strong> 是 <strong>${esc(displayWord)}</strong> 的<span>${esc(info.inflection || '变形')}</span>，以下为原形查询结果</div>`
       : '';
 
     $wordSearchResult.innerHTML = `
@@ -736,13 +882,23 @@ async function searchWord(word) {
           <span class="word">${esc(displayWord)}</span>
           ${info.phonetic ? `<span class="phonetic">${esc(info.phonetic)}</span>` : ''}
           ${info.pos ? `<span class="pos">${esc(info.pos)}</span>` : ''}
-          <button class="btn-sm" id="btnSaveVocab">收藏单词</button>
+          <button class="btn-sm btn-favorite" id="btnSaveVocab">收藏</button>
         </div>
         ${info.definitions ? info.definitions.map((d, i) => `<div class="definition"><span class="def-label">${i + 1}.</span>${esc(d)}</div>`).join('') : ''}
         ${info.forms ? `<div class="word-forms">其他变形：${esc(info.forms)}</div>` : ''}
-        ${info.sentences ? `<div class="sentences">${info.sentences.map((s, i) => `<div class="sen-item">${i + 1}. ${esc(s)}</div>`).join('')}</div>` : ''}
+        ${info.sentences ? `<div class="sentences">${info.sentences.map((s, i) => {
+              const en = typeof s === 'string' ? s : (s.en || '');
+              const cn = typeof s === 'string' ? '' : (s.cn || '');
+              return `<div class="sen-item">${i + 1}. ${esc(en)}${cn ? `<span class="example-cn">${esc(cn)}</span>` : ''}</div>`;
+            }).join('')}</div>` : ''}
       </div>`;
     $wordSearchResult._wordData = { ...info, word: displayWord };
+    // Check if already favorited
+    const vfavs = getVFavs();
+    if (vfavs.some(f => f.word === displayWord)) {
+      const btn = document.getElementById('btnSaveVocab');
+      if (btn) { btn.textContent = '已收藏'; btn.classList.add('favorited'); }
+    }
   } catch (e) {
     console.error(e);
     $wordSearchResult.innerHTML = '<div class="empty-state" style="color:var(--danger)">查询失败，请检查单词拼写后重试</div>';
@@ -760,18 +916,24 @@ function addVFav(vocab) {
   if (favs.some(f => f.word === vocab.word)) {
     toast('该单词已收藏'); return;
   }
+  const meaning = vocab.meaning || (vocab.definitions ? vocab.definitions.join('；') : '');
+  const examples = vocab.examples || vocab.sentences || [];
   favs.unshift({
     id: Date.now().toString(36) + Math.random().toString(36).slice(2, 8),
     word: vocab.word,
     phonetic: vocab.phonetic || '',
     pos: vocab.pos || '',
-    meaning: vocab.meaning || (vocab.definitions ? vocab.definitions.join('；') : ''),
-    examples: vocab.examples || vocab.sentences || [],
+    meaning: meaning,
+    definitions: vocab.definitions || [],
+    examples: examples,
+    forms: vocab.forms || '',
     createdAt: fmtTime(new Date())
   });
   setVFavs(favs);
   renderVFavs();
   toast('单词已收藏');
+  // Sync essay vocab buttons if visible
+  updateAllVocabButtons();
 }
 
 function delVFav(id) {
@@ -779,24 +941,88 @@ function delVFav(id) {
   setVFavs(getVFavs().filter(f => f.id !== id));
   renderVFavs();
   toast('已删除');
+  // Sync all vocab buttons outside the modal
+  updateAllVocabButtons();
+}
+// Sync all vocab favorite buttons after a delete
+function updateAllVocabButtons() {
+  const vfavs = getVFavs();
+  const favWords = new Set(vfavs.map(f => f.word));
+  // Search result button
+  const saveBtn = document.getElementById('btnSaveVocab');
+  if (saveBtn && $wordSearchResult._wordData) {
+    const isFav = favWords.has($wordSearchResult._wordData.word);
+    if (isFav) { saveBtn.textContent = '已收藏'; saveBtn.classList.add('favorited'); }
+    else { saveBtn.textContent = '收藏'; saveBtn.classList.remove('favorited'); }
+  }
+  // Essay vocab list buttons
+  document.querySelectorAll('.vocab-save-btn').forEach(btn => {
+    try {
+      const v = JSON.parse(btn.dataset.vocab);
+      const isFav = favWords.has(v.word);
+      if (isFav) { btn.textContent = '已收藏'; btn.classList.add('favorited'); }
+      else { btn.textContent = '收藏'; btn.classList.remove('favorited'); }
+    } catch {}
+  });
+}
+
+function pinVFav(id) {
+  const favs = getVFavs();
+  const idx = favs.findIndex(f => f.id === id);
+  if (idx === -1) return;
+  const item = favs[idx];
+  if (item.pinned) {
+    item.pinned = false;
+    favs.splice(idx, 1);
+    let insertAt = favs.findIndex(f => !f.pinned);
+    if (insertAt === -1) insertAt = favs.length;
+    while (insertAt < favs.length && !favs[insertAt].pinned && favs[insertAt].createdAt >= item.createdAt) insertAt++;
+    favs.splice(insertAt, 0, item);
+    setVFavs(favs);
+    renderVFavs();
+    toast('已取消置顶');
+  } else {
+    item.pinned = true;
+    favs.splice(idx, 1);
+    const firstUnpinned = favs.findIndex(f => !f.pinned);
+    const pinPos = firstUnpinned === -1 ? favs.length : firstUnpinned;
+    favs.splice(pinPos, 0, item);
+    setVFavs(favs);
+    renderVFavs();
+    toast('已置顶');
+  }
 }
 
 function renderVFavs() {
   const favs = getVFavs();
-  $vocabFavCnt.textContent = `(${favs.length} 个)`;
+  $vocabFavCnt.textContent = `(${favs.length})`;
+  $modalVocabCount.textContent = favs.length;
   if (!favs.length) {
-    $vocabFavList.innerHTML = '<div class="empty-state">还没有收藏的词汇，搜索单词后点击收藏即可保存</div>';
+    $modalVocabBody.innerHTML = '<div class="empty-state">还没有收藏的词汇，搜索单词后点击收藏即可保存</div>';
     return;
   }
-  $vocabFavList.innerHTML = favs.map(f => `
-    <div class="vocab-fav-item">
-      <div class="vf-info">
+  $modalVocabBody.innerHTML = favs.map((f, idx) => `
+    <div class="vf-compact${f.pinned ? ' pinned' : ''}" data-vfidx="${idx}">
+      <div class="vf-main">
         <div class="vf-word">${esc(f.word)} ${f.phonetic ? `<span class="phonetic">${esc(f.phonetic)}</span>` : ''} ${f.pos ? `<span class="pos">${esc(f.pos)}</span>` : ''}</div>
-        <div class="vf-detail">${esc(f.meaning)} · ${f.createdAt}</div>
+        <div class="vf-brief">${esc(f.meaning)}</div>
       </div>
-      <div class="fav-actions">
-        <button class="btn-sm danger" data-act="delvfav" data-id="${f.id}">删除</button>
+      <div class="fav-actions" style="position:relative">
+        <button class="more-btn" data-act="morevfav" data-id="${f.id}">&ctdot;</button>
+        <div class="more-menu" data-menu="vfav-${f.id}">
+          <button data-act="pinvfav" data-id="${f.id}">${f.pinned ? '取消置顶' : '置顶'}</button>
+          <button class="danger" data-act="delvfav" data-id="${f.id}">删除</button>
+        </div>
       </div>
+    </div>
+    <div class="vf-detail" id="vfDetail${idx}">
+      ${f.forms ? `<div class="vf-forms" style="margin-top:0">其他变形：${esc(f.forms)}</div>` : ''}
+      ${f.examples && f.examples.length ? `<div style="margin-top:8px;font-weight:600;font-size:13px;color:var(--text-secondary)">例句：</div>` + f.examples.map((ex, ei) => {
+        const en = typeof ex === 'string' ? ex : (ex.en || '');
+        const cn = typeof ex === 'string' ? '' : (ex.cn || '');
+        return `<div class="vf-sen">${ei + 1}. ${esc(en)}${cn ? `<span class="vf-sen-cn">${esc(cn)}</span>` : ''}</div>`;
+      }).join('') : ''}
+      <div style="font-size:12px;color:var(--text-secondary);margin-top:8px">${f.createdAt}</div>
     </div>
   `).join('');
 }
@@ -837,12 +1063,64 @@ $tabs.forEach(t => t.addEventListener('click', () => switchTab(t.dataset.tab)));
 
 $favBtn.addEventListener('click', addFav);
 
-$favList.addEventListener('click', e => {
+// Modal open/close
+function openModal(modal) {
+  $modalOverlay.style.display = 'flex';
+  document.querySelectorAll('.modal-card').forEach(m => m.classList.remove('active'));
+  modal.classList.add('active');
+}
+function closeModal() {
+  $modalOverlay.style.display = 'none';
+  document.querySelectorAll('.modal-card').forEach(m => m.classList.remove('active'));
+}
+$modalOverlay.addEventListener('click', e => { if (e.target === $modalOverlay) closeModal(); });
+document.querySelectorAll('.modal-close').forEach(btn => btn.addEventListener('click', closeModal));
+document.getElementById('btnOpenVocabFav').addEventListener('click', () => openModal($modalVocabFav));
+document.getElementById('btnOpenEssayFav').addEventListener('click', () => openModal($modalEssayFav));
+
+// Close all open menus
+function closeAllMenus() {
+  document.querySelectorAll('.more-menu.open').forEach(m => m.classList.remove('open'));
+}
+
+// Essay favs in modal
+$modalEssayBody.addEventListener('click', e => {
   const btn = e.target.closest('button');
-  if (!btn) return;
-  const { act, id } = btn.dataset;
-  if (act === 'view') viewFav(id);
-  if (act === 'del') delFav(id);
+  const { act, id } = (btn && btn.dataset) || {};
+  if (act === 'view') { closeModal(); viewFav(id); }
+  else if (act === 'delessay') { closeAllMenus(); delFav(id); }
+  else if (act === 'pinessay') { closeAllMenus(); pinFav(id); }
+  else if (act === 'moreessay') {
+    e.stopPropagation();
+    closeAllMenus();
+    document.querySelector(`[data-menu="essay-${id}"]`).classList.add('open');
+  }
+});
+
+// Vocab favs in modal
+$modalVocabBody.addEventListener('click', e => {
+  const compact = e.target.closest('.vf-compact');
+  const btn = e.target.closest('button');
+  const { act, id } = (btn && btn.dataset) || {};
+  if (act === 'delvfav') { closeAllMenus(); delVFav(id); return; }
+  if (act === 'pinvfav') { closeAllMenus(); pinVFav(id); return; }
+  if (act === 'morevfav') {
+    e.stopPropagation();
+    closeAllMenus();
+    document.querySelector(`[data-menu="vfav-${id}"]`).classList.add('open');
+    return;
+  }
+  // Expand/collapse
+  if (compact && !btn) {
+    const idx = compact.dataset.vfidx;
+    const detail = document.getElementById('vfDetail' + idx);
+    if (detail) detail.classList.toggle('open');
+  }
+});
+
+// Close menus on outside click
+document.addEventListener('click', e => {
+  if (!e.target.closest('.more-menu') && !e.target.closest('.more-btn')) closeAllMenus();
 });
 
 // Word search
@@ -856,7 +1134,13 @@ $wordSearchInput.addEventListener('keydown', e => { if (e.key === 'Enter') $btnS
 // Save word from search result
 $wordSearchResult.addEventListener('click', e => {
   if (e.target.id === 'btnSaveVocab' && $wordSearchResult._wordData) {
+    if (e.target.classList.contains('favorited')) {
+      toast('这个单词已经收藏过了');
+      return;
+    }
     addVFav($wordSearchResult._wordData);
+    e.target.textContent = '已收藏';
+    e.target.classList.add('favorited');
   }
 });
 
@@ -864,18 +1148,13 @@ $wordSearchResult.addEventListener('click', e => {
 document.querySelector('#tab-vocabulary .tab-pane').addEventListener('click', e => {
   const btn = e.target.closest('.vocab-save-btn');
   if (!btn) return;
+  if (btn.classList.contains('favorited')) { toast('这个单词已经收藏过了'); return; }
   try {
     const vocab = JSON.parse(btn.dataset.vocab);
     addVFav(vocab);
+    btn.textContent = '已收藏';
+    btn.classList.add('favorited');
   } catch {}
-});
-
-// Vocab favorites delete
-$vocabFavList.addEventListener('click', e => {
-  const btn = e.target.closest('button');
-  if (!btn) return;
-  const { act, id } = btn.dataset;
-  if (act === 'delvfav') delVFav(id);
 });
 
 // ==================== Key management ====================
