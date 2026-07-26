@@ -105,6 +105,16 @@ body {
 @keyframes spin { to { transform: rotate(360deg); } }
 .loading p { margin-top: 12px; color: var(--text-secondary); font-size: 14px; }
 
+/* Vocab loading */
+.vocab-loading { text-align: center; padding: 40px 20px; }
+.vocab-loading .spinner { margin-bottom: 16px; }
+.vocab-loading .status-text { color: var(--text); font-size: 15px; font-weight: 500; margin-bottom: 16px; }
+.vocab-loading .sub-text { color: var(--text-secondary); font-size: 13px; margin-bottom: 20px; }
+.progress-wrap { max-width: 320px; margin: 0 auto; }
+.progress-bar { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+.progress-bar .fill { height: 100%; background: var(--primary); border-radius: 3px; transition: width 0.4s ease; }
+.progress-text { margin-top: 8px; font-size: 12px; color: var(--text-secondary); }
+
 /* Result area */
 .result-area { display: none; }
 .result-area.active { display: block; }
@@ -346,7 +356,7 @@ body {
   <!-- Loading -->
   <div class="loading" id="loading">
     <div class="spinner"></div>
-    <p>AI 正在为你撰写高分作文...</p>
+    <p id="loadingText">AI 正在为你撰写高分作文...</p>
   </div>
 
   <!-- Error -->
@@ -430,12 +440,15 @@ function getApiKey() {
   return localStorage.getItem(KEY_STORAGE) || '';
 }
 function setApiKey(key) {
-  localStorage.setItem(KEY_STORAGE, key.trim());
+  try { localStorage.setItem(KEY_STORAGE, key.trim()); } catch { toast('存储失败，请重试'); }
 }
 
 // ==================== 例句（API 实时生成） ====================
+let fetchingExamples = false;
 async function fetchExamples() {
+  if (fetchingExamples) return;
   if (!getApiKey()) { $exList.innerHTML = '<div class="empty-state" style="padding:12px">请先在顶部输入 API Key</div>'; return; }
+  fetchingExamples = true;
   $exList.innerHTML = '<div class="example-item" style="cursor:default;opacity:0.6">AI 正在生成题目...</div>';
   try {
     const res = await fetch(DEEPSEEK_URL, {
@@ -445,39 +458,38 @@ async function fetchExamples() {
         'Authorization': `Bearer ${getApiKey()}`
       },
       body: JSON.stringify({
-        model: 'deepseek-chat',
+        model: 'deepseek-v4-flash',
         messages: [
-          { role: 'system', content: '你是 CET-6 命题专家。只返回 JSON，不要任何其他内容。' },
-          { role: 'user', content: `生成5个 CET-6 英语作文开头句。要求：
-1. 每个句子是完整的陈述句，可作为作文的第一句
-2. 覆盖不同热门话题（科技、教育、环境、社会、文化、健康等），尽量不重复领域
-3. 句子长度适中（15-30词），适合六级水平
-4. 语法正确，表达地道
-5. 每个句子都能引出观点的讨论空间
+          { role: 'system', content: 'You are a JSON API. Output ONLY a JSON array of 5 English sentences. No reasoning, no explanation.' },
+          { role: 'user', content: `Generate 5 CET-6 essay opening sentences. Each must be a complete statement suitable as an essay's first sentence.
 
-返回严格的 JSON 数组（不要 markdown 代码块）：
-["句子1", "句子2", "句子3", "句子4", "句子5"]` }
+CRITICAL: 5 COMPLETELY DIFFERENT topics. Pick from CET-6 typical areas:
+learning methods, part-time jobs, online shopping, social media pros & cons, environmental protection, reading habits, perseverance, team spirit, confidence, keeping pets, living independently, public transportation, healthy lifestyle, choosing a major, internship, campus activities, volunteering, saving money, work-life balance, traveling.
+
+Keep sentences SIMPLE and NATURAL — CET-6 level and style. Each sentence 15-30 words.
+
+Return ONLY: ["sentence1","sentence2","sentence3","sentence4","sentence5"]` }
         ],
-        temperature: 1.2,
+        temperature: 1.5,
         max_tokens: 1024
       })
     });
 
     if (!res.ok) throw new Error('获取例句失败');
     const data = await res.json();
-    let content = data.choices[0].message.content.trim();
-    const m = content.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
-    if (m) content = m[1].trim();
+    let content = (data.choices[0].message.content || '').trim();
 
-    const sentences = JSON.parse(content);
+    const sentences = extractJSON(content);
     if (!Array.isArray(sentences) || sentences.length === 0) throw new Error('格式异常');
 
     $exList.innerHTML = sentences.map(s =>
-      `<div class="example-item" data-sentence="${esc(s)}">${esc(s)}</div>`
+      `<div class="example-item" data-sentence="${escAttr(s)}">${esc(s)}</div>`
     ).join('');
   } catch (e) {
     console.error(e);
-    $exList.innerHTML = '<div class="empty-state" style="padding:12px;color:var(--danger)">例句加载失败，<a href="javascript:location.reload()" style="color:var(--primary)">刷新页面</a>重试</div>';
+    $exList.innerHTML = '<div class="empty-state" style="padding:12px;color:var(--danger)">例句加载失败，<a href="#" onclick="location.reload();return false" style="color:var(--primary)">刷新页面</a>重试</div>';
+  } finally {
+    fetchingExamples = false;
   }
 }
 
@@ -522,23 +534,41 @@ function toast(msg) {
 function err(msg) { $error.textContent = msg; $error.classList.add('active'); }
 function clearErr() { $error.classList.remove('active'); }
 
+// Extract JSON array/object from AI response that may contain reasoning text
+function extractJSON(text) {
+  // Try direct parse first
+  try { return JSON.parse(text); } catch {}
+  // Strip code fences
+  let m = text.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
+  if (m) { try { return JSON.parse(m[1].trim()); } catch {} }
+  // Find all JSON array/object candidates, try from the end (answer follows reasoning)
+  const candidates = [];
+  const re = /(\[[\s\S]*?\]|\{[\s\S]*?\})/g;
+  while ((m = re.exec(text)) !== null) {
+    candidates.push(m[1]);
+  }
+  // Try from last (which is the answer, reasoning comes first)
+  for (let i = candidates.length - 1; i >= 0; i--) {
+    try { return JSON.parse(candidates[i]); } catch {}
+  }
+  return null;
+}
 function esc(str) {
   const d = document.createElement('div');
   d.textContent = str;
   return d.innerHTML;
+}
+function escAttr(str) {
+  // Like esc() but also escapes quotes for use inside HTML attributes
+  const d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 function fmtTime(date) {
   const d = new Date(date);
   const p = n => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
-}
-
-// ==================== Examples ====================
-function renderExamples() {
-  $exList.innerHTML = pickSamples(5).map(s =>
-    `<div class="example-item" data-sentence="${esc(s)}">${esc(s)}</div>`
-  ).join('');
 }
 
 // ==================== API ====================
@@ -554,83 +584,193 @@ function buildPrompt(topic) {
    - Paragraph 3 (Conclusion): 总结全文，升华主题，提出展望
 2. 总字数严格控制在 150-200 词（单词个数，不是字符数）
 3. 必须以给定的句子作为作文第一句，一字不改
-4. 从作文中挑选 8-10 个真正有难度、值得六级考生重点掌握的词汇进行讲解
-
-【词汇挑选标准——只选以下类型的词，不要选简单词！】
-- 六级/考研/雅思级别的高级词汇（如：exacerbate, imperative, formidable, ubiquitous, paradigm, scrutinize, alleviate, detrimental, prevalent 等）
-- 地道的高级短语搭配（如：hinge on, grapple with, take precedence over, in the wake of 等）
-- 熟词的生僻义项（如：address 作"解决"、harbor 作"怀有"）
-- 学术写作常用词（如：consequently, nevertheless, fundamentally, inherent, notwithstanding 等）
-- 禁止选基础词汇（如：important, good, bad, make, do, think, people, thing 等）
-
-【例句要求】
-- 每个例句本身要有难度，包含其他高级词汇或复杂句式
-- 例句应适合直接用在六级作文中（学术、正式、有说服力）
-- 每个例句后紧跟中文翻译，格式为 {"en": "英文", "cn": "中文翻译"}
 
 返回严格的 JSON 格式（不要包含 markdown 代码块标记）：
 {
   "essay": "// Paragraph 1 //\\n完整英文段落\\n\\n// Paragraph 2 //\\n完整英文段落\\n\\n// Paragraph 3 //\\n完整英文段落",
-  "translation": "// 第一段 //\\n中文翻译\\n\\n// 第二段 //\\n中文翻译\\n\\n// 第三段 //\\n中文翻译",
-  "vocabulary": [{"word": "高级词汇", "phonetic": "音标", "pos": "词性", "meaning": "中文释义", "usage": "文中原句用法", "examples": [{"en": "英文例句", "cn": "中文翻译"}]}]
+  "translation": "// 第一段 //\\n中文翻译\\n\\n// 第二段 //\\n中文翻译\\n\\n// 第三段 //\\n中文翻译"
 }
 
 开头句：${topic}`;
 }
 
+function buildVocabExtractPrompt(essay) {
+  return `From the essay below, list ALL words and phrases worth讲解 for CET-6 students. Include:
+- Advanced vocabulary (CET-6/IELTS level)
+- Idiomatic phrases & collocations (e.g. hinge on, in the wake of, shed light on)
+- Academic connectors (e.g. consequently, nevertheless)
+- Words with rare meanings (e.g. address=解决)
+- Exclude basic words: important, good, bad, make, do, think, people, thing, very, many, new, use, need, say, get
+- Include BOTH single words AND multi-word phrases
+
+Return ONLY: [{"word":"...","usage":"full sentence from essay"}]
+
+Essay:
+${essay}`;
+}
+
+async function lookupWordData(word) {
+  const res = await fetch(DEEPSEEK_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${getApiKey()}`
+    },
+    body: JSON.stringify({
+      model: 'deepseek-v4-flash',
+      messages: [
+        { role: 'system', content: '你是英语词典专家。只返回 JSON，不要其他。' },
+        { role: 'user', content: `查询"${word}"。
+
+规则：
+1. 如果输入包含空格（如"grappling with"），说明查询的是短语。先确认每个单词是否需要还原（如grappling是现在分词→还原为grapple），然后将整个短语标准化后查询。baseForm填标准化后的完整短语，inflection填变形类型。
+2. 如果输入是单个词，按变形规则还原后查询。
+
+【例句要求】每个例句要有难度，含六级高级词汇或复杂句型，学术正式、适合直接用在作文中。
+
+返回 JSON（sentences必须恰好3个）：
+{
+  "word": "标准化后的词或短语（如grapple with）",
+  "baseForm": "若是变形则填标准化后的形式（含短语），否则空",
+  "inflection": "若有baseForm必须填类型（过去式/过去分词/现在分词/复数/比较级/最高级/三单），不可为空",
+  "phonetic": "音标",
+  "pos": "词性",
+  "definitions": ["n. 释义", "v. 释义"],
+  "forms": "其他变形说明",
+  "sentences": [{"en": "英文例句1", "cn": "中文翻译1"}, {"en": "英文例句2", "cn": "中文翻译2"}, {"en": "英文例句3", "cn": "中文翻译3"}]
+}` }
+      ],
+      temperature: 0.3,
+      max_tokens: 1024
+    })
+  });
+  if (!res.ok) throw new Error(`查询 ${word} 失败`);
+  const data = await res.json();
+  let content = (data.choices[0].message.content || '').trim();
+  const info = extractJSON(content);
+  if (!info) throw new Error(`查询 ${word} 返回解析失败`);
+  // Normalize: prefer baseForm if available
+  return { ...info, word: info.baseForm || info.word };
+}
+
 async function generate(topic) {
+  const $lt = document.getElementById('loadingText');
+  $lt.textContent = 'AI 正在为你撰写高分作文...';
   $loading.classList.add('active');
   $result.classList.remove('active');
   clearErr();
-  try {
-    const res = await fetch(DEEPSEEK_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${getApiKey()}`
-      },
-      body: JSON.stringify({
-        model: 'deepseek-chat',
-        messages: [
-          { role: 'system', content: '你是一位专业的 CET-6 英语写作辅导老师。始终返回合法的 JSON。' },
-          { role: 'user', content: buildPrompt(topic) }
-        ],
-        temperature: 0.7,
-        max_tokens: 4096
-      })
-    });
 
-    if (!res.ok) {
-      const e = await res.json().catch(() => ({}));
-      throw new Error(e.error?.message || `API 请求失败 (${res.status})`);
-    }
+  const res1 = await fetch(DEEPSEEK_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${getApiKey()}`
+    },
+    body: JSON.stringify({
+      model: 'deepseek-v4-flash',
+      messages: [
+        { role: 'system', content: '你是一位专业的 CET-6 英语写作辅导老师。始终返回合法的 JSON。' },
+        { role: 'user', content: buildPrompt(topic) }
+      ],
+      temperature: 0.7,
+      max_tokens: 4096
+    })
+  });
 
-    const data = await res.json();
-    const content = data.choices[0].message.content.trim();
-
-    // strip code fences if present
-    let jsonStr = content;
-    const m = content.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
-    if (m) jsonStr = m[1].trim();
-
-    let parsed;
-    try { parsed = JSON.parse(jsonStr); } catch {
-      throw new Error('AI 返回格式异常，请重试。');
-    }
-    if (!parsed.essay || !parsed.translation) {
-      throw new Error('AI 返回数据不完整，请重试。');
-    }
-    return parsed;
-  } finally {
-    $loading.classList.remove('active');
+  if (!res1.ok) {
+    const e = await res1.json().catch(() => ({}));
+    throw new Error(e.error?.message || `API 请求失败 (${res1.status})`);
   }
+
+  const d1 = await res1.json();
+  const msg1 = d1.choices[0].message;
+  let essayJsonStr = (msg1.content || '').trim();
+  if (!essayJsonStr) {
+    throw new Error('作文生成 API 返回空内容。完整响应：' + JSON.stringify(d1).slice(0, 500));
+  }
+
+  let essayParsed = extractJSON(essayJsonStr);
+  if (!essayParsed || !essayParsed.essay || !essayParsed.translation) {
+    throw new Error('AI 返回格式异常，原始返回：\n' + essayJsonStr.slice(0, 500));
+  }
+
+  return { essay: essayParsed.essay, translation: essayParsed.translation };
+}
+
+async function loadVocabulary(essay) {
+
+  // Phase 2: Extract all worthwhile vocabulary words with usage
+  renderVocabProgress('extract', 0, 0);
+  const res2 = await fetch(DEEPSEEK_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${getApiKey()}`
+    },
+    body: JSON.stringify({
+      model: 'deepseek-v4-flash',
+      messages: [
+        { role: 'system', content: 'You are a JSON output machine. Do NOT think, analyze, explain, or reason. Output ONLY a valid JSON array. If you output anything other than JSON, the system will crash. First and only response must be: [{...}]' },
+        { role: 'user', content: buildVocabExtractPrompt(essay) }
+      ],
+      temperature: 0.3,
+      max_tokens: 32768
+    })
+  });
+
+  if (!res2.ok) throw new Error('词汇提取失败');
+
+  const d2 = await res2.json();
+  const msg2 = d2.choices[0].message;
+  let vocabJsonStr = (msg2.content || '').trim();
+  if (!vocabJsonStr) {
+    throw new Error('词汇提取 API 返回空内容。完整响应：' + JSON.stringify(d2).slice(0, 500));
+  }
+
+  let wordList = extractJSON(vocabJsonStr);
+  if (wordList && !Array.isArray(wordList)) {
+    if (Array.isArray(wordList.words)) wordList = wordList.words;
+    else if (Array.isArray(wordList.vocabulary)) wordList = wordList.vocabulary;
+    else if (Array.isArray(wordList.list)) wordList = wordList.list;
+    else if (Array.isArray(wordList.items)) wordList = wordList.items;
+    else wordList = null;
+  }
+  if (!Array.isArray(wordList) || wordList.length === 0) {
+    throw new Error('词汇提取解析失败（前500字符）：\n' + vocabJsonStr.slice(0, 500) + '\n\n（末尾500字符）：\n' + vocabJsonStr.slice(-500));
+  }
+
+  // Phase 3: Look up each word in parallel batches of 5
+  const vocabulary = [];
+  const batchSize = 5;
+  renderVocabProgress('lookup', 0, wordList.length);
+  for (let i = 0; i < wordList.length; i += batchSize) {
+    const batch = wordList.slice(i, i + batchSize);
+    const results = await Promise.all(batch.map(item =>
+      lookupWordData(item.word).then(info => ({
+        word: info.word,
+        phonetic: info.phonetic || '',
+        pos: info.pos || '',
+        meaning: info.definitions ? info.definitions.join('；') : '',
+        usage: item.usage,
+        examples: info.sentences || []
+      })).catch(e => {
+        console.error(`查找 ${item.word} 失败:`, e);
+        return null;
+      })
+    ));
+    vocabulary.push(...results.filter(Boolean));
+    renderVocabProgress('lookup', Math.min(i + batchSize, wordList.length), wordList.length);
+  }
+
+  return vocabulary;
 }
 
 // ==================== Render ====================
 function renderEssay(topic, essay) {
   const head = esc(topic);
-  // Count words
-  const wordCount = essay.split(/[\s\n]+/).filter(w => w.length > 0 && !w.match(/^\/\/\s*Paragraph/i)).length;
+  // Count words (strip paragraph markers first to avoid counting // and numbers)
+  const cleanEssay = essay.replace(/\/\/\s*Paragraph\s*\d\s*\/\//gi, '');
+  const wordCount = cleanEssay.split(/[\s\n]+/).filter(w => w.length > 0).length;
 
   // Remove paragraph markers
   let body = essay.replace(/\/\/\s*Paragraph\s*\d\s*\/\//gi, '');
@@ -658,8 +798,29 @@ function renderTrans(translation) {
   document.querySelector('#tab-translation .tab-pane').innerHTML = text;
 }
 
+function renderVocabProgress(phase, current, total) {
+  const el = document.querySelector('#tab-vocabulary .tab-pane');
+  let html = '<div class="vocab-loading"><div class="spinner"></div>';
+  if (phase === 'extract') {
+    html += '<div class="status-text">正在分析作文中的高级词汇和词组...</div>';
+    html += '<div class="sub-text">AI 正在逐句扫描，找出所有值得讲解的词</div>';
+    html += '<div class="progress-wrap"><div class="progress-bar"><div class="fill" style="width:20%"></div></div><div class="progress-text">阶段 1/2 · 提取词汇</div></div>';
+  } else {
+    const pct = total ? Math.round(current / total * 100) : 0;
+    html += `<div class="status-text">正在详解词汇 (${current}/${total})</div>`;
+    html += '<div class="sub-text">每个词查询音标、释义、例句，请耐心等待</div>';
+    html += `<div class="progress-wrap"><div class="progress-bar"><div class="fill" style="width:${pct}%"></div></div><div class="progress-text">阶段 2/2 · 查词中 ${current}/${total}</div></div>`;
+  }
+  html += '</div>';
+  el.innerHTML = html;
+}
+
 function renderVocab(vocab) {
   const el = document.querySelector('#tab-vocabulary .tab-pane');
+  if (vocab === null) {
+    renderVocabProgress('extract', 0, 0);
+    return;
+  }
   if (!vocab || !vocab.length) {
     el.innerHTML = '<div class="empty-state">暂无词汇讲解</div>'; return;
   }
@@ -669,7 +830,7 @@ function renderVocab(vocab) {
         <span class="word">${esc(v.word)}</span>
         ${v.phonetic ? `<span class="phonetic">${esc(v.phonetic)}</span>` : ''}
         ${v.pos ? `<span class="pos">${esc(v.pos)}</span>` : ''}
-        <button class="btn-sm vocab-save-btn btn-favorite" data-vocab='${esc(JSON.stringify(v))}'>收藏</button>
+        <button class="btn-sm vocab-save-btn btn-favorite" data-vocab="${escAttr(JSON.stringify(v))}">收藏</button>
       </div>
       <div class="meaning">释义：${esc(v.meaning)}</div>
       ${v.usage ? `<div class="usage">文中用法："${esc(v.usage)}"</div>` : ''}
@@ -689,7 +850,7 @@ function renderVocab(vocab) {
   el.querySelectorAll('.vocab-save-btn').forEach(btn => {
     try {
       const v = JSON.parse(btn.dataset.vocab);
-      if (vfavs.some(f => f.word === v.word)) {
+      if (vfavs.some(f => f.word.toLowerCase() === v.word.toLowerCase())) {
         btn.textContent = '已收藏';
         btn.classList.add('favorited');
       }
@@ -728,9 +889,15 @@ function switchTab(name) {
 
 // ==================== Favorites CRUD ====================
 function getFavs() {
-  try { return JSON.parse(localStorage.getItem(FAV_KEY) || '[]'); } catch { return []; }
+  try {
+    const v = JSON.parse(localStorage.getItem(FAV_KEY) || '[]');
+    return Array.isArray(v) ? v : [];
+  } catch { return []; }
 }
-function setFavs(favs) { localStorage.setItem(FAV_KEY, JSON.stringify(favs)); }
+function setFavs(favs) {
+  try { localStorage.setItem(FAV_KEY, JSON.stringify(favs)); }
+  catch { toast('存储空间不足，请清理收藏后重试'); }
+}
 
 function addFav() {
   if (!curResult) return;
@@ -772,7 +939,7 @@ function pinFav(id) {
     let insertAt = favs.findIndex(f => !f.pinned); // first unpinned
     if (insertAt === -1) insertAt = favs.length;
     // Insert at correct time order within unpinned
-    while (insertAt < favs.length && !favs[insertAt].pinned && favs[insertAt].createdAt >= item.createdAt) insertAt++;
+    while (insertAt < favs.length && !favs[insertAt].pinned && favs[insertAt].createdAt > item.createdAt) insertAt++;
     favs.splice(insertAt, 0, item);
     setFavs(favs);
     renderFavs();
@@ -838,19 +1005,23 @@ async function searchWord(word) {
         'Authorization': `Bearer ${getApiKey()}`
       },
       body: JSON.stringify({
-        model: 'deepseek-chat',
+        model: 'deepseek-v4-flash',
         messages: [
           { role: 'system', content: '你是英语词典专家。只返回 JSON，不要其他。' },
-          { role: 'user', content: `查询单词"${word}"。先判断是否为变形（现在分词、过去式、过去分词、复数、三单、比较级、最高级等）。若是变形则还原为原形再查询。
+          { role: 'user', content: `查询"${word}"。
+
+规则：
+1. 如果输入包含空格（如"grappling with"），说明查询的是短语。先确认每个单词是否需要还原（如grappling是现在分词→还原为grapple），然后将整个短语标准化后查询。baseForm填标准化后的完整短语，inflection填变形类型。
+2. 如果输入是单个词，按变形规则还原后查询。
 
 【例句要求】每个例句要有难度，含六级高级词汇或复杂句型，学术正式、适合直接用在作文中。
 
 返回 JSON（sentences必须恰好3个）：
 {
-  "word": "必须填原形！如输入automating这里填automate",
-  "baseForm": "若是变形则填原形，否则空",
+  "word": "标准化后的词或短语（如grapple with）",
+  "baseForm": "若是变形则填标准化后的形式（含短语），否则空",
   "inflection": "若有baseForm必须填类型（过去式/过去分词/现在分词/复数/比较级/最高级/三单），不可为空",
-  "phonetic": "原形的音标",
+  "phonetic": "音标",
   "pos": "词性",
   "definitions": ["n. 释义", "v. 释义"],
   "forms": "其他变形",
@@ -864,10 +1035,9 @@ async function searchWord(word) {
     });
     if (!res.ok) throw new Error('查询失败');
     const data = await res.json();
-    let content = data.choices[0].message.content.trim();
-    const m = content.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
-    if (m) content = m[1].trim();
-    const info = JSON.parse(content);
+    let content = (data.choices[0].message.content || '').trim();
+    const info = extractJSON(content);
+    if (!info) throw new Error('查询返回解析失败');
 
     // Always use baseForm as display word when available (AI may return inflected form in word field)
     const displayWord = info.baseForm || info.word;
@@ -895,25 +1065,32 @@ async function searchWord(word) {
     $wordSearchResult._wordData = { ...info, word: displayWord };
     // Check if already favorited
     const vfavs = getVFavs();
-    if (vfavs.some(f => f.word === displayWord)) {
+    if (vfavs.some(f => f.word.toLowerCase() === displayWord.toLowerCase())) {
       const btn = document.getElementById('btnSaveVocab');
       if (btn) { btn.textContent = '已收藏'; btn.classList.add('favorited'); }
     }
   } catch (e) {
     console.error(e);
+    $wordSearchResult._wordData = null;
     $wordSearchResult.innerHTML = '<div class="empty-state" style="color:var(--danger)">查询失败，请检查单词拼写后重试</div>';
   }
 }
 
 // ==================== Vocab Favorites ====================
 function getVFavs() {
-  try { return JSON.parse(localStorage.getItem(VFAV_KEY) || '[]'); } catch { return []; }
+  try {
+    const v = JSON.parse(localStorage.getItem(VFAV_KEY) || '[]');
+    return Array.isArray(v) ? v : [];
+  } catch { return []; }
 }
-function setVFavs(vs) { localStorage.setItem(VFAV_KEY, JSON.stringify(vs)); }
+function setVFavs(vs) {
+  try { localStorage.setItem(VFAV_KEY, JSON.stringify(vs)); }
+  catch { toast('存储空间不足，请清理收藏后重试'); }
+}
 
 function addVFav(vocab) {
   const favs = getVFavs();
-  if (favs.some(f => f.word === vocab.word)) {
+  if (favs.some(f => f.word.toLowerCase() === vocab.word.toLowerCase())) {
     toast('该单词已收藏'); return;
   }
   const meaning = vocab.meaning || (vocab.definitions ? vocab.definitions.join('；') : '');
@@ -947,11 +1124,11 @@ function delVFav(id) {
 // Sync all vocab favorite buttons after a delete
 function updateAllVocabButtons() {
   const vfavs = getVFavs();
-  const favWords = new Set(vfavs.map(f => f.word));
+  const favWords = new Set(vfavs.map(f => f.word.toLowerCase()));
   // Search result button
   const saveBtn = document.getElementById('btnSaveVocab');
   if (saveBtn && $wordSearchResult._wordData) {
-    const isFav = favWords.has($wordSearchResult._wordData.word);
+    const isFav = favWords.has($wordSearchResult._wordData.word.toLowerCase());
     if (isFav) { saveBtn.textContent = '已收藏'; saveBtn.classList.add('favorited'); }
     else { saveBtn.textContent = '收藏'; saveBtn.classList.remove('favorited'); }
   }
@@ -959,7 +1136,7 @@ function updateAllVocabButtons() {
   document.querySelectorAll('.vocab-save-btn').forEach(btn => {
     try {
       const v = JSON.parse(btn.dataset.vocab);
-      const isFav = favWords.has(v.word);
+      const isFav = favWords.has(v.word.toLowerCase());
       if (isFav) { btn.textContent = '已收藏'; btn.classList.add('favorited'); }
       else { btn.textContent = '收藏'; btn.classList.remove('favorited'); }
     } catch {}
@@ -976,7 +1153,7 @@ function pinVFav(id) {
     favs.splice(idx, 1);
     let insertAt = favs.findIndex(f => !f.pinned);
     if (insertAt === -1) insertAt = favs.length;
-    while (insertAt < favs.length && !favs[insertAt].pinned && favs[insertAt].createdAt >= item.createdAt) insertAt++;
+    while (insertAt < favs.length && !favs[insertAt].pinned && favs[insertAt].createdAt > item.createdAt) insertAt++;
     favs.splice(insertAt, 0, item);
     setVFavs(favs);
     renderVFavs();
@@ -1038,11 +1215,26 @@ $genBtn.addEventListener('click', async () => {
   $genBtn.textContent = '生成中...';
 
   try {
-    const data = await generate(topic);
-    showResult(topic, data);
+    // Phase 1: Generate essay, show immediately
+    const essayData = await generate(topic);
+    showResult(topic, { ...essayData, vocabulary: null });
+    $loading.classList.remove('active');
+    $genBtn.disabled = false;
+    $genBtn.textContent = '生成作文';
+
+    // Phase 2+3: Load vocabulary in background
+    try {
+      const vocab = await loadVocabulary(essayData.essay);
+      curResult.vocabulary = vocab;
+      renderVocab(vocab);
+    } catch (e) {
+      console.error('词汇加载失败:', e);
+      renderVocab([]);
+      if (e.message) toast('词汇加载失败：' + e.message);
+    }
   } catch (e) {
     err(e.message || '生成失败，请检查网络后重试');
-  } finally {
+    $loading.classList.remove('active');
     $genBtn.disabled = false;
     $genBtn.textContent = '生成作文';
   }
@@ -1075,6 +1267,7 @@ function closeModal() {
 }
 $modalOverlay.addEventListener('click', e => { if (e.target === $modalOverlay) closeModal(); });
 document.querySelectorAll('.modal-close').forEach(btn => btn.addEventListener('click', closeModal));
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && $modalOverlay.style.display === 'flex') closeModal(); });
 document.getElementById('btnOpenVocabFav').addEventListener('click', () => openModal($modalVocabFav));
 document.getElementById('btnOpenEssayFav').addEventListener('click', () => openModal($modalEssayFav));
 
@@ -1124,12 +1317,19 @@ document.addEventListener('click', e => {
 });
 
 // Word search
-$btnSearchWord.addEventListener('click', () => {
+let isSearching = false;
+$btnSearchWord.addEventListener('click', async () => {
+  if (isSearching) return;
   const w = $wordSearchInput.value.trim();
   if (!w) { toast('请输入要查询的单词'); return; }
-  searchWord(w);
+  isSearching = true;
+  $btnSearchWord.disabled = true;
+  try { await searchWord(w); } finally {
+    isSearching = false;
+    $btnSearchWord.disabled = false;
+  }
 });
-$wordSearchInput.addEventListener('keydown', e => { if (e.key === 'Enter') $btnSearchWord.click(); });
+$wordSearchInput.addEventListener('keydown', e => { if (e.key === 'Enter' && !isSearching) $btnSearchWord.click(); });
 
 // Save word from search result
 $wordSearchResult.addEventListener('click', e => {
@@ -1154,7 +1354,7 @@ document.querySelector('#tab-vocabulary .tab-pane').addEventListener('click', e 
     addVFav(vocab);
     btn.textContent = '已收藏';
     btn.classList.add('favorited');
-  } catch {}
+  } catch { toast('收藏失败，请重试'); }
 });
 
 // ==================== Key management ====================
